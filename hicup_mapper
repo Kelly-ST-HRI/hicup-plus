@@ -271,10 +271,10 @@ do {
 print "Pairing complete\n" unless $config{quiet};
 
 #Remove intermediate *.map* files
-my @map_files = fileNamer(\@filenames, \%config, 'mapper', 0, 0, 0, 1, 0);
-foreach my $mapFile (@map_files) {
-    unlink $config{outdir}.$mapFile or warn "Could not delete '$config{outdir}.$mapFile'\n";
-}
+# my @map_files = fileNamer(\@filenames, \%config, 'mapper', 0, 0, 0, 1, 0);
+# foreach my $mapFile (@map_files) {
+#    unlink $config{outdir}.$mapFile or warn "Could not delete '$config{outdir}.$mapFile'\n";
+# }
 
 close SUMMARY or die "Could not close filehandle on '$summaryfile' : $!";
 
@@ -388,6 +388,7 @@ sub map_file {
 
     local ( *READER, *WRITER, *ERROR );
     my $oid;
+    my $oid1;
     print( "$inputfile \n" );
     my $inputprefix = substr($inputfile, 0, -15);
 
@@ -412,16 +413,17 @@ sub map_file {
       }
     } elsif ( $config{bwa} ne '' ) {
         print "\n running bwa aln...\n" unless $config{quiet};
-        print( "\n $config{bwa} aln -t $bowtie2_threads $config{format} $config{index} /dev/stdin | $config{samtools} view -h -F 4 | grep -v '\\\*' > $outputfile \n" ) unless $config{quiet};
-        $oid = open3( \*WRITER, \*READER, \*ERROR, "$config{bwa} aln -t $bowtie2_threads --$config{format} $config{index} /dev/stdin > $outputfile" );
+        print( "\n $config{bwa} aln -t $bowtie2_threads $config{format} $config{index} /dev/stdin > ${outputfile}.sai \n" ) unless $config{quiet};
+        $oid = open3( \*WRITER, \*READER, \*ERROR, "$config{bwa} aln -t $bowtie2_threads $config{format} $config{index} /dev/stdin > ${outputfile}.sai" );
+        $oid1 = open3( \*WRITER, \*READER, \*ERROR, "$config{bwa} samse $config{index} ${outputfile}.sai /dev/stdin 2> >(tee -a $outputfile.stderr.log >&2) 1> $outputfile" );
     } elsif ( $config{bwamem} ne '' ) {
         print "\n running bwamem...\n" unless $config{quiet};
         print( "\n $config{bwamem} mem -t $bowtie2_threads -L 9999,9999 $config{index} /dev/stdin| $config{samtools} view -hS -F 4 > $outputfile \n" )  unless $config{quiet};
-        $oid = open3( \*WRITER, \*READER, \*ERROR, "$config{bwamem} mem -t $bowtie2_threads -L 9999,9999 $config{index} /dev/stdin | grep -v '\\*' > $outputfile" );
+        $oid = open3( \*WRITER, \*READER, \*ERROR, "$config{bwamem} mem -t $bowtie2_threads -L 9999 $config{index} /dev/stdin 2> >(tee -a $outputfile.stderr.log >&2) 1> $outputfile" );
     } elsif ( $config{bwamem2} ne '' ) {
         print "\n running bwamem2...\n" unless $config{quiet};
         print( "\n $config{bwamem2} mem -t $bowtie2_threads -L 9999,9999 $config{index} /dev/stdin| $config{samtools} view -hS -F 4 > $outputfile \n" )  unless $config{quiet};
-        $oid = open3( \*WRITER, \*READER, \*ERROR, "$config{bwamem2} mem -t $bowtie2_threads -L 9999,9999 $config{index} /dev/stdin | $config{samtools} view -h -F 4 | grep -v '\*' > $outputfile" )
+        $oid = open3( \*WRITER, \*READER, \*ERROR, "$config{bwamem2} mem -t $bowtie2_threads $config{index} - 1> $outputfile 2> $outputfile.stderr" )
     } elsif ( $config{dragen} ne '' ) {
          print "\n running dragen...\n" unless $config{quiet};
          #check hostname has partial match to dragen
@@ -461,7 +463,7 @@ sub map_file {
     } elsif ( $config{minimap2} ne '' ) {
          print "\n running minimap2...\n" unless $config{quiet};
          print ( "\n $config{minimap2} -a -N 1 -t $bowtie2_threads -G 0  $config{index}.mmi /dev/stdin  | $config{samtools} view -hS -F 4 > $outputfile\n" ) unless $config{quiet};
-         $oid = open3( \*WRITER, \*READER, \*ERROR, "$config{minimap2} -a -N 1 -t $bowtie2_threads -G 0 $config{index}.mmi /dev/stdin | $config{samtools} view -hS -F 256,8,2 | sed -r 's/([0-9]+)S/\1I/g' > $outputfile" );
+         $oid = open3( \*WRITER, \*READER, \*ERROR, "$config{minimap2} -a -N 1 -t $bowtie2_threads -G 0 $config{index}.mmi /dev/stdin 2> >(tee -a $outputfile.stderr.log >&2) 1> $outputfile" );
     } elsif ( $config{star} ne '' ) {
          print "\n running STAR...\n" unless $config{quiet};
          print ( "\n $config{star} --runMode alignReads --genomeDir $config{index} --outQSconversionAdd $config{format} --readFilesIn /dev/stdin --runThreadN $bowtie2_threads --outSAMtype SAM --chimMainSegmentMultNmax 1 --chimSegmentMin 0 --outSJtype None --outFilterIntronMotifs  RemoveNoncanonical --outFilterIntronStrands RemoveInconsistentStrands --outFilterMismatchNmax 1 --outFilterMultimapNmax 1 --bamRemoveDuplicatesType UniqueIdentical --outSAMmultNmax 1 --alignSoftClipAtReferenceEnds No --alignEndsType EndToEnd --alignIntronMax 0  --alignIntronMin 999999999999 --outSAMunmapped None --outReadsUnmapped None --readFilesCommand cat --outFileNamePrefix $inputprefix --outStd SAM > $outputfile &&  \n" )  unless $config{quiet};
@@ -535,7 +537,7 @@ sub map_file {
 
     if ( $config{dragen} ) {
            print WRITER "";
-    } elsif ( $config{bwa} or $config{bwam2m} or $config{bwamem2} or $config{minimap2} or $config{star} ) {
+    } elsif ( $config{bwa} or $config{bwamem} or $config{bwamem2} or $config{minimap2} or $config{star} ) {
            print ERROR "";
     } else {
         while ( $select->can_read(0.01) ) {
@@ -874,18 +876,18 @@ sub pair {
                     }
                     $in_header = 0;
                 }
-                if ( $config{dragen} ) {                         ##
+                if ( $config{dragen} or $config{bwa}) {                         ##
                    my @f_read_split = split("\t", $f_read);
                    my $f_read_str_id = $f_read_split[0];
                    my @r_read_split = split("\t", $r_read);
                    my $r_read_str_id = $r_read_split[0];
 
-#                    print STDERR "string ID";
-#                    print STDERR "\n";
-#                    print STDERR $f_read_str_id;
-#                    print STDERR "\n";
-#                    print STDERR $r_read_str_id;
-#                    print STDERR "\n";
+                    print STDERR "string ID";
+                    print STDERR "\n";
+                    print STDERR $f_read_str_id;
+                    print STDERR "\n";
+                    print STDERR $r_read_str_id;
+                    print STDERR "\n";
 
                    if (  $f_read_id == 0){
                         $f_read_id = 1;
@@ -949,12 +951,12 @@ sub pair {
                 if($r_read_id eq $f_read_id){   #Special case in which current Forward ID is same as previous reverse ID
          
 
-#                    print STDERR "read ID match";
-#                    print STDERR "\n";
-#                    print STDERR $f_read_id;
-#                    print STDERR "\n";
-#                    print STDERR $r_read_id;
-#                    print STDERR "\n";
+                    print STDERR "read ID match";
+                    print STDERR "\n";
+                    print STDERR $f_read_id;
+                    print STDERR "\n";
+                    print STDERR $r_read_id;
+                    print STDERR "\n";
        
                     if($config{bowtie2}  or $config{hisat2}){
                         if ( bowtie2MultiMapRead($r_read) ){     #Don't included multi-mapping reads
@@ -963,7 +965,7 @@ sub pair {
                         }
                     }
               
-                    if ( $config{dragen} ){                  ##
+                    if ( $config{dragen} or $config{bwa} ){                  ##
                     #    $f_read =~ s/^(.*?)\t/1_$1\t/; # add \1 to add R1s
                     #    $r_read =~ s/^(.*?)\t/2_$1\t/; # add \2 to add R2s
 
@@ -976,13 +978,13 @@ sub pair {
                         $r_read =~ s/^(\d+)_//; #Remove numbering labels                ##
                     }
 
-#                    print STDERR "\n";
-#                    print STDERR "read to format input";
-#                    print STDERR "\n";
-#                    print STDERR $f_read;
-#                    print STDERR "\n";
-#                    print STDERR $r_read;
-#                    print STDERR "\n";
+                    print STDERR "\n";
+                    print STDERR "read to format input";
+                    print STDERR "\n";
+                    print STDERR $f_read;
+                    print STDERR "\n";
+                    print STDERR $r_read;
+                    print STDERR "\n";
 
                     ( $f_read, $r_read ) = sam_formatter( $f_read, $r_read );
 
@@ -1011,7 +1013,7 @@ sub pair {
                         next;
                     } else {
 
-                        if ( $config{dragen} ) {          ##
+                        if ( $config{dragen} or $config{bwa} ) {          ##
                             $r_read =~ //;
                             my @f_read_split = split("\t", $f_read);
                             my $f_read_str_id = $f_read_split[0];
