@@ -801,11 +801,16 @@ Example command:
     Threads: 1
     Bowtie: [Path to Bowtie on your system, if using this aligner]
     Bowtie2: [Path to Bowtie2 on your system, if using this aligner]
+    BWA: [Path to BWA on your system, if using bwa aln aligner]
+    BWAMEM: [Path to BWA on your system, if using bwa mem aligner]
+    BWAMEM2: [Path to BWAMEM2 on your system, if using bwa-mem2 aligner]
     Dragen: [Path to DRAGEN on your system, if using this aligner]
     Digest: [Path to digest file on your system]
     Hisat2: [Path to HISAT2 on your system, if using this aligner]
     Index: [Path to Bowtie/Bowtie2 indices on your system]
+    Minimap2: [Path to minimap2 on your system, if using this aligner]
     R: [Path to R on your system]
+    STAR: [Path to STAR on your system, if using this aligner]
     Format: phred33-quals
     Shortest: 50
     Longest: 700
